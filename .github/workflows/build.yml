@@ -1,0 +1,31 @@
+name: Build Module
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build-ko:
+    name: Build module
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ylarod/ddk-min:android16-6.12-20260313
+      options: --privileged
+
+    steps:
+    - name: Build 
+      run: |
+        SRC=/opt/ddk/src/android16-6.12
+        mkdir out
+        OUT=$(realpath out)
+        make -C $SRC O=$OUT gki_defconfig
+        $SRC/scripts/config --file $OUT/.config -e CONFIG_CFI_ICALL_NORMALIZE_INTEGERS -m CONFIG_IP_SET -m CONFIG_IP_SET_HASH_NET -m CONFIG_IP_SET_LIST_SET
+        make -C $SRC O=$OUT olddefconfig
+        make -C $SRC O=$OUT modules_prepare
+        make -C $SRC O=$OUT M=$SRC/net/netfilter/ipset modules
+
+    - name: Upload kernel modules
+      uses: actions/upload-artifact@v7
+      with:
+        name: ipset_kos
+        path: /opt/ddk/src/android16-6.12/net/netfilter/ipset/*.ko
