@@ -1,4 +1,4 @@
-# DDK 构建内核树内模块
+# DDK 构建 GKI 内核的树内模块
 
 ## 用法
 
@@ -8,6 +8,10 @@
 3. 运行，等待成功后从 actions run 下载 modules ，包含构建的模块 .ko 的压缩包。
 
 [DDK](https://github.com/Ylarod/ddk) 支持的内核分支：android12-5.10, android13-5.10, android13-5.15, android14-5.15, android14-6.1, android15-6.6, android16-6.12
+
+## 加载模块
+
+由于 GKI 内核存在[导出符号裁剪](https://blog.xzr.moe/archives/236/#section-3:~:text=CONFIG_TRIM_UNUSED_KSYMS)，因此不一定能直接用 insmod 加载。可以使用 `ksud debug insmod` 进行加载。非 KernelSU 用户可下载 KernelSU 最新 apk ，解压 lib/arm64-v8a/libksud.so 获取 ksud 。
 
 ## TODO
 
