@@ -1,31 +1,60 @@
 name: Build Module
+run-name: Build ${{ inputs.module_path }} on ${{ inputs.branch }}
 
 on:
   workflow_dispatch:
-  push:
+    inputs:
+      branch:
+        description: 'Kernel branch (e.g., android16-6.12, android15-6.6)'
+        required: true
+        default: 'android16-6.12'
+      ddk_version:
+        description: 'DDK version (default: 20260313)'
+        required: false
+        default: '20260313'
+      module_path:
+        description: 'Module relative path in kernel tree (e.g., net/unix or net/netfilter/ipset)'
+        required: true
+      configs:
+        description: 'Options pass to scripts/config, e.g., -m CONFIG_UNIX_DIAG or -m CONFIG_IP_SET'
+        required: false
+        default: ''
 
 jobs:
   build-ko:
     name: Build module
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/ylarod/ddk-min:android16-6.12-20260313
+      image: ghcr.io/ylarod/ddk-min:${{ inputs.branch }}-${{ inputs.ddk_version }}
       options: --privileged
 
     steps:
     - name: Build 
       run: |
-        SRC=/opt/ddk/src/android16-6.12
+        BRANCH=${{ inputs.branch }}
+        MODULE_PATH=${{ inputs.module_path }}
+        CONFIGS="${{ inputs.configs }}"
+        
+        SRC=/opt/ddk/src/$BRANCH
         mkdir out
         OUT=$(realpath out)
         make -C $SRC O=$OUT gki_defconfig
-        $SRC/scripts/config --file $OUT/.config -e CONFIG_CFI_ICALL_NORMALIZE_INTEGERS -m CONFIG_UNIX_DIAG
+        
+        # Build config parameters from the input
+        CONFIG_ARGS="$CONFIGS"
+        
+        # Apply CONFIG_CFI_ICALL_NORMALIZE_INTEGERS only for android16-6.12
+        if [ "$BRANCH" = "android16-6.12" ]; then
+          CONFIG_ARGS="$CONFIG_ARGS -e CONFIG_CFI_ICALL_NORMALIZE_INTEGERS"
+        fi
+        
+        $SRC/scripts/config --file $OUT/.config $CONFIG_ARGS
         make -C $SRC O=$OUT olddefconfig
         make -C $SRC O=$OUT modules_prepare
-        make -C $SRC O=$OUT M=$SRC/net/unix modules
+        make -C $SRC O=$OUT M=$SRC/$MODULE_PATH modules
 
     - name: Upload kernel modules
       uses: actions/upload-artifact@v7
       with:
         name: modules
-        path: /opt/ddk/src/android16-6.12/net/unix/*.ko
+        path: /opt/ddk/src/${{ inputs.branch }}/${{ inputs.module_path }}/**/*.ko
