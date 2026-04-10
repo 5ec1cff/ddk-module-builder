@@ -7,7 +7,7 @@ on:
       branch:
         description: 'Kernel branch (e.g., android16-6.12, android15-6.6)'
         required: true
-        default: 'android16-6.12'
+        default: 'android15-6.6'
       ddk_version:
         description: 'DDK version (default: 20260313)'
         required: false
