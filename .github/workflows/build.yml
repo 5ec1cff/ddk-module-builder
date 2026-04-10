@@ -34,6 +34,12 @@ jobs:
         BRANCH=${{ inputs.branch }}
         MODULE_PATH=${{ inputs.module_path }}
         CONFIGS="${{ inputs.configs }}"
+        cat <<-EOF > info.txt
+        BRANCH=$BRANCH
+        MODULE_PATH=$MODULE_PATH
+        CONFIGS="$CONFIGS"
+        DDK_VERSION=${{ inputs.ddk_version }}
+        EOF
         
         SRC=/opt/ddk/src/$BRANCH
         mkdir out
@@ -53,8 +59,24 @@ jobs:
         make -C $SRC O=$OUT modules_prepare
         make -C $SRC O=$OUT M=$SRC/$MODULE_PATH modules
 
-    - name: Upload kernel modules
+    - name: Prepare Artifacts
+      run: |
+        BASE="/opt/ddk/src/${{ inputs.branch }}/${{ inputs.module_path }}"
+        mkdir artifacts
+
+        # Move *.ko into workspace while preserving paths
+        while IFS= read -r -d '' f; do
+          rel="artifacts/${f#"$BASE"/}"
+          mkdir -p "$(dirname "$rel")"
+          mv "$f" "$rel"
+        done < <(find "$BASE" -type f  -name '*.ko' -print0)
+
+        # Move kernel config and rename
+        mv out/.config artifacts/kernel_config.txt
+        mv info.txt artifacts
+
+    - name: Upload kernel modules and config files
       uses: actions/upload-artifact@v7
       with:
         name: modules
-        path: /opt/ddk/src/${{ inputs.branch }}/${{ inputs.module_path }}/**/*.ko
+        path: artifacts
