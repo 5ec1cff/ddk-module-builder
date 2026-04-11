@@ -1,11 +1,11 @@
 name: Build Module
-run-name: Build ${{ inputs.module_path }} on ${{ inputs.branch }}
+run-name: Build ${{ inputs.module_path }} on multiple branches
 
 on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Kernel branch (e.g., android16-6.12, android15-6.6)'
+        description: 'Kernel branch (e.g., android16-6.12, android15-6.6) - multiple branches separated by commas'
         required: true
         default: 'android16-6.12'
       ddk_version:
@@ -21,25 +21,40 @@ on:
         default: ''
 
 jobs:
-  build-ko:
-    name: Build module
+  setup-matrix:
+    name: Setup build matrix
     runs-on: ubuntu-latest
+    outputs:
+      branches: ${{ steps.set-branches.outputs.branches }}
+    steps:
+    - id: set-branches
+      run: |
+        # Convert comma-separated input to JSON array
+        BRANCHES_JSON=$(echo '${{ inputs.branch }}' | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
+        echo "branches=${BRANCHES_JSON}" >> $GITHUB_OUTPUT
+
+  build-ko:
+    name: Build module on ${{ matrix.branch }}
+    needs: setup-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: ${{ fromJson(needs.setup-matrix.outputs.branches) }}
+      fail-fast: false
     container:
-      image: ghcr.io/ylarod/ddk-min:${{ inputs.branch }}-${{ inputs.ddk_version }}
+      image: ghcr.io/ylarod/ddk-min:${{ matrix.branch }}-${{ inputs.ddk_version }}
       options: --privileged
 
     steps:
     - name: Build 
       run: |
-        BRANCH=${{ inputs.branch }}
+        BRANCH=${{ matrix.branch }}
         MODULE_PATH=${{ inputs.module_path }}
         CONFIGS="${{ inputs.configs }}"
-        cat <<-EOF > info.txt
         BRANCH=$BRANCH
         MODULE_PATH=$MODULE_PATH
         CONFIGS="$CONFIGS"
         DDK_VERSION=${{ inputs.ddk_version }}
-        EOF
         
         SRC=/opt/ddk/src/$BRANCH
         mkdir out
@@ -58,25 +73,19 @@ jobs:
         make -C $SRC O=$OUT olddefconfig
         make -C $SRC O=$OUT modules_prepare
         make -C $SRC O=$OUT M=$SRC/$MODULE_PATH modules
-
     - name: Prepare Artifacts
       run: |
-        BASE="/opt/ddk/src/${{ inputs.branch }}/${{ inputs.module_path }}"
-        mkdir artifacts
-
-        # Move *.ko into workspace while preserving paths
+        # Clone repository
+        git clone https://github.com/TanakaLun/IPSET_LKM.git
+        BASE="/opt/ddk/src/${{ matrix.branch }}/${{ inputs.module_path }}"
         while IFS= read -r -d '' f; do
-          rel="artifacts/${f#"$BASE"/}"
-          mkdir -p "$(dirname "$rel")"
-          mv "$f" "$rel"
-        done < <(find "$BASE" -type f  -name '*.ko' -print0)
-
-        # Move kernel config and rename
-        mv out/.config artifacts/kernel_config.txt
-        mv info.txt artifacts
-
-    - name: Upload kernel modules and config files
+          rel_path="${f#$BASE/}"
+          dest="IPSET_LKM/netfilter/$rel_path"
+          mkdir -p "$(dirname "$dest")"
+          cp "$f" "$dest"
+        done < <(find "$BASE" -type f -name '*.ko' -print0)
+    - name: Upload ZIP Archive
       uses: actions/upload-artifact@v7
       with:
-        name: modules
-        path: artifacts
+        name: IPSET_LKM_${{ matrix.branch }}
+        path: IPSET_LKM
