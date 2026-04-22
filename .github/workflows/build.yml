@@ -43,7 +43,10 @@ jobs:
         
         SRC=/opt/ddk/src/$BRANCH
         mkdir out
+        cp $KDIR/System.map out
+        mkdir mods
         OUT=$(realpath out)
+        MODS=$(realpath mods)
         make -C $SRC O=$OUT gki_defconfig
         
         # Build config parameters from the input
@@ -54,29 +57,20 @@ jobs:
           CONFIG_ARGS="$CONFIG_ARGS -e CONFIG_CFI_ICALL_NORMALIZE_INTEGERS"
         fi
         
-        $SRC/scripts/config --file $OUT/.config $CONFIG_ARGS
+        if [ -n "$CONFIG_ARGS" ]; then
+          $SRC/scripts/config --file $OUT/.config $CONFIG_ARGS
+        fi
         make -C $SRC O=$OUT olddefconfig
         make -C $SRC O=$OUT modules_prepare
-        make -C $SRC O=$OUT M=$SRC/$MODULE_PATH modules
+        make -C $SRC O=$OUT M=$SRC/$MODULE_PATH modules modules_install INSTALL_MOD_PATH=$MODS
 
     - name: Prepare Artifacts
       run: |
-        BASE="/opt/ddk/src/${{ inputs.branch }}/${{ inputs.module_path }}"
-        mkdir artifacts
-
-        # Move *.ko into workspace while preserving paths
-        while IFS= read -r -d '' f; do
-          rel="artifacts/${f#"$BASE"/}"
-          mkdir -p "$(dirname "$rel")"
-          mv "$f" "$rel"
-        done < <(find "$BASE" -type f  -name '*.ko' -print0)
-
-        # Move kernel config and rename
-        mv out/.config artifacts/kernel_config.txt
-        mv info.txt artifacts
+        mv out/.config mods/kernel_config.txt
+        mv info.txt mods
 
     - name: Upload kernel modules and config files
       uses: actions/upload-artifact@v7
       with:
         name: modules
-        path: artifacts
+        path: mods
