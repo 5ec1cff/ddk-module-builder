@@ -17,7 +17,7 @@
 
 ## 加载模块
 
-由于 GKI 内核存在[导出符号裁剪](https://blog.xzr.moe/archives/236/#section-3:~:text=CONFIG_TRIM_UNUSED_KSYMS)，因此不一定能直接用 insmod 加载。可以使用 `ksud debug insmod` 进行加载。非 KernelSU 用户可下载 KernelSU 最新 apk ，解压 lib/arm64-v8a/libksud.so 获取 ksud 。
+由于 GKI 内核存在[导出符号裁剪](https://blog.xzr.moe/archives/236/#section-3:~:text=CONFIG_TRIM_UNUSED_KSYMS)，因此不一定能直接用 insmod 加载。可以使用 `ksud debug insmod` 进行加载。非 KernelSU 用户可下载 KernelSU 最新 apk ，解压 lib/arm64-v8a/libksud.so 获取 ksud 。也可以使用 [lkmloader](https://github.com/Kernel-SU/lkmloader.ko) 加载模块。
 
 ## TODO
 
